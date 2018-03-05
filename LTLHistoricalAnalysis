@@ -1,0 +1,688 @@
+import csv
+import datetime
+import time
+import pandas as pd
+import numpy as np
+import bisect
+import math
+import gmplot
+import random
+import webbrowser
+start = time.time()
+
+class tripObject:
+    #def __init__(self, startZip, endZip, miles, pallets):
+    def __init__(self, origin, destination, shipDate, delivDate, palletQuantity, originCity = "?", desitnationCity = "?"):
+        #self.zipSequence = [origin, destination]
+        #self.dateSequence = [shipDate, delivDate]
+        #self.palletSequence = [palletQuantity]
+
+        self.palletQuantity = palletQuantity
+        self.startDate = shipDate  #will need to be flexible in final model
+        self.endDate = delivDate   #will need to be flexible in final model
+        self.origin = origin    
+        self.destination = destination
+
+        self.originCity = originCity
+        self.destinationCity = destinationCity
+
+        self.distance = distanceReferences[(origin, destination)]
+
+
+class routeObject:
+    #def __init__(self, zipSequence, dateSequence, palletVolumeSequence):
+    #def __init__(self, origin, destination, shipDate, delivDate, palletQuantity):
+    def __init__(self, initialTrip):
+        self.startDate = initialTrip.startDate
+        self.endDate = initialTrip.endDate
+        self.origin = initialTrip.origin
+        self.destination = initialTrip.destination
+
+        self.originCity = initialTrip.originCity
+        self.destinationCity = initialTrip.destinationCity
+
+        self.zipSequence = [initialTrip.origin, initialTrip.destination]
+        self.citySequence = [initialTrip.originCity, initialTrip.destinationCity]
+        self.dateSequence = [initialTrip.startDate, initialTrip.endDate]
+        self.palletSequence = [initialTrip.palletQuantity]
+
+        self.delivDateSequence = [initialTrip.endDate]
+        self.shipDateSequence = [initialTrip.startDate]
+        self.palletSequence = [initialTrip.palletQuantity, 0]
+
+        self.palletChangeSequence = [initialTrip.palletQuantity, -1 * initialTrip.palletQuantity]
+        self.actionSequence = ['Load', 'Unload']
+
+        self.allTrips = [initialTrip]
+
+        self.mileage = distanceReferences[(self.origin, self.destination)]
+
+    def printRoute(self):
+        #print('Route begins:', self.startDate, 'in', self.origin)
+        #print('Route ends:', self.endDate, 'in', self.destination)
+
+        print('Route Details:')
+        numItems = len(self.zipSequence)
+        for i in range(0, numItems):
+            print(self.dateSequence[i], ":", self.actionSequence[i], abs(self.palletChangeSequence[i]), "pallets in", self.citySequence[i])
+
+    def compatibleInterimTrip(testTrip):
+        
+        if 
+        baseDistance = self.mileage
+        try:
+            adjustedRoute = self.zipSequence[:]
+            adjustedRoute[nOriginIdx:nOriginIdx] = [testTrip.origin]
+            adjustedRoute[nDestinationIdx+1:nDestinationIdx+1] = [testTrip.destination]
+            
+            miles = 0
+            for idx, zip in enumerate(adjustedRoute[1:]):
+                miles = miles + distanceReferences[(adjustedRoute[idx], zip)]
+
+            if miles > baseDistance*maxAddedDistanceMultiplier + maxAddedDistanceConstant:
+                #print("Distance Violated:")
+                #print(baseDistance, "to", miles)
+
+                return False
+
+        except:
+            print("Error in distance calculator")
+            return False    
+
+    def compatibleTrip(self, testTrip):
+        maxCapacity = 30
+        flexibleDepartureAfter = pd.Timedelta(0, unit='d')
+        flexibleDepartureBefore = pd.Timedelta(0, unit='d')
+
+        flexibleArrivalAfter = pd.Timedelta(3, unit='d')
+        flexibleArrivalBefore = pd.Timedelta(3, unit='d')
+
+        #maxOriginDist = 200
+        maxOriginDist = 400
+        #maxDestinationDist = 300
+        maxDestinationDist = 400
+
+        maxAddedDistanceMultiplier = 1.3
+        maxAddedDistanceConstant = 200
+        #distanceMultiplier = .5
+        #maxDestinationDist = max(300, distanceMultiplier * self.mileage)
+        #maxOriginDist = max(300, distanceMultiplier * self.mileage)
+
+        maxAddedDays = 5
+
+
+
+        nearbyOrigin = False
+        nOriginIdx = 0
+        nearbyDestination = False
+        nDestinationIdx = 0
+        validCapacity = True
+
+        if testTrip.startDate >= (self.startDate - flexibleDepartureBefore) and testTrip.endDate <= (self.endDate + flexibleArrivalAfter):  #tests if the dates are in valid range
+            numStops = len(self.zipSequence)
+            for stopIndex in range(0, numStops):
+                if not nearbyOrigin:    #only runs test until it is a match
+                    #print(self.zipSequence)
+                    #if (testTrip.startDate > self.dateSequence[stopIndex]):
+
+                    if (distanceReferences[(testTrip.origin, self.zipSequence[stopIndex])] <= maxOriginDist \
+                    and (testTrip.startDate == (self.dateSequence[stopIndex]))):
+                        nearbyOrigin = True
+                        nOriginIdx = stopIndex
+                        #nOriginIdx.append(stopIndex)
+
+                #will only check for compatible destination after it has matched an origin to the route
+                elif not nearbyDestination:  #only tests this if the route has matched an origin with a stop
+                    if distanceReferences[(testTrip.destination, self.zipSequence[stopIndex])] <= maxDestinationDist \
+                    and (testTrip.endDate == (self.dateSequence[stopIndex])):
+                        nearbyDestination = True
+                        nDestinationIdx = stopIndex
+                        break
+
+                else:
+                    break
+
+        if (nearbyOrigin and nearbyDestination):
+            #for i in range(nOriginIdx, nDestinationIdx):
+            addedQuantity = testTrip.palletQuantity
+            newVolume = [addedQuantity + x for x in self.palletSequence]
+            validCapacity = (all(x <= maxCapacity for x in newVolume))
+        else:
+            return False
+
+            #test further that max load is not violated
+
+        #add test to make sure the added stop does not increase distance by n%
+        
+
+        return (nearbyOrigin and nearbyDestination and validCapacity)
+
+
+    def addTrip(self, newTrip):
+
+        self.allTrips.append(newTrip) 
+
+        adjustedStartIndex = bisect.bisect_left(self.shipDateSequence, newTrip.startDate)
+        adjustedStartIndexOverall = bisect.bisect_left(self.dateSequence, newTrip.startDate)
+
+        #self.shipDateSequence = self.shipDateSequence[:adjustedStartIndex] + [newTrip.startDate] + self.shipDateSequence[adjustedStartIndex:]
+        self.shipDateSequence[adjustedStartIndex:adjustedStartIndex] = [newTrip.startDate]
+        self.dateSequence[adjustedStartIndexOverall:adjustedStartIndexOverall] = [newTrip.startDate]
+        self.zipSequence[adjustedStartIndexOverall:adjustedStartIndexOverall] = [newTrip.origin]
+        self.citySequence[adjustedStartIndexOverall:adjustedStartIndexOverall] = [newTrip.originCity]
+
+
+
+        tempVolume = newTrip.palletQuantity 
+        
+        self.palletChangeSequence[adjustedStartIndexOverall:adjustedStartIndexOverall] = [tempVolume]
+        self.actionSequence[adjustedStartIndexOverall:adjustedStartIndexOverall] = ["Load"]
+
+        if adjustedStartIndexOverall == 0:
+             self.startDate = newTrip.startDate
+             self.origin = newTrip.origin
+        #     tempVolumeSeq = self.palletSequence
+            
+
+        #     self.palletSequence = [tempVolume] + [i + tempVolume for i in tempVolumeSeq]
+
+        # else:
+        #     tempPalletsBeforeNewTrip = self.palletSequence[adjustedStartIndexOverall:]
+
+        #     tempPalletsAfterNewTrip = self.palletSequence[:adjustedStartIndexOverall]
+        #     adjustedAfterPallets = [tempVolume + i for i in tempPalletsAfterNewTrip]
+        #     self.palletSequence = tempPalletsBeforeNewTrip + [tempPalletsBeforeNewTrip[-1] + tempVolume] + adjustedAfterPallets
+
+
+
+        #similar procedure followed for adjusting around the added delivery date
+        #in end product, adjust order of trips to minimize total distances
+        adjustedEndIndex = bisect.bisect_left(self.delivDateSequence, newTrip.endDate)
+        adjustedEndIndexOverall = bisect.bisect_left(self.dateSequence, newTrip.endDate)
+        lastElementIndexOverall = len(self.dateSequence) + 1
+
+        self.delivDateSequence[adjustedEndIndex:adjustedEndIndex] = [newTrip.endDate]
+        self.dateSequence[adjustedEndIndexOverall:adjustedEndIndexOverall] = [newTrip.endDate]
+        self.zipSequence[adjustedEndIndexOverall:adjustedEndIndexOverall] = [newTrip.destination]
+        self.citySequence[adjustedEndIndexOverall:adjustedEndIndexOverall] = [newTrip.destinationCity]
+
+        self.palletChangeSequence[adjustedEndIndexOverall:adjustedEndIndexOverall] = [-1 * tempVolume]
+        self.actionSequence[adjustedEndIndexOverall:adjustedEndIndexOverall] = ["Unload"]
+
+        if adjustedEndIndexOverall == lastElementIndexOverall:
+             self.endDate = newTrip.endDate
+             self.destination = newTrip.destination
+
+        newPalletSequence = [0]
+        for change in self.palletChangeSequence:
+            newPalletSequence.append(newPalletSequence[-1] + change)
+
+        self.palletSequence = newPalletSequence[1:] #removes the base 0 from the temp sequence
+
+        miles = 0
+        for idx, zip in enumerate(self.zipSequence[1:]):
+            miles = miles + distanceReferences[(self.zipSequence[idx], zip)]
+
+        self.mileage = miles
+
+
+
+def printList(myList, outputFile):
+    with open(outputFile,'w', newline='') as out:
+        csv_out=csv.writer(out)
+        #csv_out.writerow(header)   #adds header to first row of csv file
+        for row in myList:
+            try:
+                csv_out.writerow(row)
+            except:
+                csv_out.writerow([filterUnicode(x) for x in row])
+
+def filterUnicode(text):
+    return ''.join([i if ord(i) < 128 else ' ' for i in text])
+
+
+def readCSV(csvFile):
+    with open(csvFile, 'r') as f:
+        reader = csv.reader(f)
+        data = list(reader)
+    return data
+
+
+def get_random_color(pastel_factor = 0.5):
+    return [(x+pastel_factor)/(1.0+pastel_factor) for x in [random.uniform(0,1.0) for i in [1,2,3]]]
+
+def color_distance(c1,c2):
+    return sum([abs(x[0]-x[1]) for x in zip(c1,c2)])
+
+def generate_new_color(existing_colors,pastel_factor = 0.5):
+    max_distance = None
+    best_color = None
+    for i in range(0,100):
+        color = get_random_color(pastel_factor = pastel_factor)
+        if not existing_colors:
+            return color
+        best_distance = min([color_distance(color,c) for c in existing_colors])
+        if not max_distance or best_distance > max_distance:
+            max_distance = best_distance
+            best_color = color
+    return best_color
+
+
+def genColors(n):
+    if __name__ == '__main__':
+      #To make your color choice reproducible, uncomment the following line:
+      random.seed(10)
+      colors = []
+      for i in range(0,n):
+          colors.append(generate_new_color(colors,pastel_factor = 0.9))    
+      return colors
+
+def loadMajorZips():    #returns list of major zips as [3firstdigits, Zipcode, latitude, longitude]
+    zips = readCSV("zipcodeOutputData5.csv")
+    zips = zips[1:]
+
+    validZips = []
+
+    for item in zips:
+        if item[4] == "X":
+            pass
+        else:
+            validZips.append(item)
+
+    zipsPure = [[j[0], j[1], j[13], j[14]] for j in validZips]
+    return zipsPure
+
+def showRouteMap(saveFileName='LTLMap2.html'):
+    #progress = csvToListOfRowLists("C:\\Users\\sean.hartrich\\Downloads\\zip3GoogleMapsPathMiles.csv")
+    LTLout = loadLTLRoutes()
+    #print(LTLout[:5])
+    #LTLRoutes = LTLout[1][1:]
+    
+    LTLZips = LTLout
+
+    zips = loadMajorZips()
+
+    coorDict = {}
+
+    sets = []
+
+    for row in zips:
+        coorDict[zipSwitcher(row[0])] = (row[2], row[3])
+
+
+    for route in LTLZips:
+        #print(route)
+        try:
+            temp = []
+            route2 = route[1:]
+            for idx, zip in enumerate(route2):
+                temp.append((coorDict[route[idx]], coorDict[zip]))
+
+            sets.append(temp)
+            # for idx, zip in enumerate(route[1:]):
+            #     coors = coorDict[(route[idx], zip)]
+            #     temp.append()
+        except:
+            pass
+
+    
+    try:
+        webbrowser.open(saveFileName)
+    except:
+        pass
+
+    
+
+    colorRatios = genColors(len(sets))
+    #rgbList = [(round(255*x[0]), round(255*x[1]), round(255*x[2])) for x in colorRatios]
+
+    colors = ['#%02x%02x%02x' % (round(255*x[0]), round(255*x[1]), round(255*x[2])) for x in colorRatios]
+
+    gmap = gmplot.gmplot.GoogleMapPlotter.from_geocode("United States", zoom = 4.5)
+
+    #print(colors)
+    for idx, route in enumerate(sets):
+        #print(colors[idx])
+        #print(route)
+        #pathLat = [round(item[0][0],2), round(item[1][0],2)]
+        #pathLon = [round(item[0][1], 2), round(item[1][1], 2)]        
+        for item in route:
+            #print(item)
+            pathLat = [float(item[0][0]), float(item[1][0])]
+            pathLon = [float(item[0][1]), float(item[1][1])]        
+
+            gmap.plot(pathLat, pathLon, colors[idx], edge_width=1)
+    
+    gmap.draw(saveFileName)
+
+
+def addZip3(zipFull):
+    zip = str(zipFull)
+
+    try:
+        t = int(zipFull[:5])
+    except:
+        #print(zipFull)
+        return 'ZipError'
+
+    lZip = len(zip)
+    if lZip >= 5:
+        return zip[:3]
+    elif lZip == 4:
+        return "0" + zip[:2]
+    elif lZip == 3:
+        return "00" + zip[:1]
+    else:
+        return 'ZipError'
+
+
+def fromDistance(baseZip3, zip3):
+    return distanceReferences[(baseZip3, zip3)]
+
+
+
+def loadDataFrame():
+    dataFrame = pd.read_csv("LTL CSV.csv", encoding = "ISO-8859-1") #adjust encoding as necessary
+    
+    dataFrame['ShipZip3'] = dataFrame['Ship Zip'].apply(addZip3)
+    dataFrame['ConZip3'] = dataFrame['Con Zip'].apply(addZip3)
+
+    dataFrame['ShipDate'] = pd.to_datetime(dataFrame['Ship Date'], format='%m/%d/%Y')
+    dataFrame['DelivDate'] = pd.to_datetime(dataFrame['Deliv Date'], format='%m/%d/%Y')
+
+
+    return dataFrame
+
+def dataFrameToTripList(df):
+    trips = []
+    items = len(df)
+
+    for idx in range(0, items):
+        row = df.ix[idx]
+        #print(row)
+
+        city1 = str(row['Ship City']) + ', ' + str(row['Ship State'])
+        city2 = str(row['Cons City']) + ', ' + str(row['Cons State'])
+
+        #print(idx, row['ShipZip3'], row['ConZip3'])
+
+        temp = tripObject(row['ShipZip3'], row['ConZip3'], row['ShipDate'], row['DelivDate'], row['Max. Quantity'], city1, city2)
+        trips.append(temp)
+
+    return trips
+
+def zipSwitcher(integer):
+
+    switcher = {
+        1: "00",
+        2: "0",
+        3: ""
+        }
+
+    s = str(integer)
+    return switcher.get(len(s)) + s
+
+
+def distRef():
+    global distanceMatrix
+    distanceMatrix = readCSV('matrixOfRealDistances.csv')
+
+    headerRow = distanceMatrix[0][1:]
+
+    distanceDict = {}
+
+    for a in range(1,1000):
+        zipA = zipSwitcher(a)
+        distanceDict[(zipA, 'ZipError')] = 999999
+        distanceDict[('ZipError', zipA)] = 999999
+        for b in range(1,1000):
+            distanceDict[(zipA, zipSwitcher(b))] = 999999
+
+
+
+    for row in distanceMatrix:
+        fromZip = row[0]
+        modifiedRow = row[1:]
+
+        for colNum, item in enumerate(modifiedRow):
+            toZip = headerRow[colNum]
+            distanceDict[(fromZip, toZip)] = int(float(item))
+
+    for z in headerRow:
+        distanceDict[('ZipError', z)] = 999999
+        distanceDict[(z, 'ZipError')] = 999999
+
+    distanceDict[('ZipError', 'ZipError')] = 999999
+
+    return distanceDict
+
+
+def possiblePairs(df, focusTrip, delivDateNum = 3, shipDateNum = 0, pickUpMax = 300, dropOffMax = 300, maxAdjustment = .3, maxPallets = 30):
+    delivDateRange = pd.Timedelta(delivDateNum, unit='d')
+    shipDateRange = pd.Timedelta(shipDateNum, unit='d')
+
+    #delivMinDate = focusTrip['DelivDate'] - delivDateRange
+    #delivMaxDate = focusTrip['DelivDate'] + delivDateRange
+    delivDateRng = pd.date_range(focusTrip['DelivDate'] - delivDateRange, focusTrip['DelivDate'] + delivDateRange)
+
+    #shipMinDate = focusTrip['ShipDate'] - shipDateRange
+    #shipMaxDate = focusTrip['ShipDate'] + shipDateRange
+    shipDateRng = pd.date_range(focusTrip['ShipDate'] - shipDateRange, focusTrip['ShipDate'] + shipDateRange)
+
+    #mask = (df['date'] > start_date) & (df['date'] <= end_date)
+    #mask = (df['DelivDate'] in delivDateRng) & (df['ShipDate'] in shipDateRng)
+    #print(mask)
+    #dateFilteredDF = df[((df['DelivDate'] in delivDateRng) & (df['ShipDate'] in shipDateRng))]
+
+    dateFilteredDF = df[df['ShipDate'].isin(shipDateRng)]
+    #print(dateFilteredDF.keys())
+    dateFilteredDF = dateFilteredDF[dateFilteredDF['DelivDate'].isin(delivDateRng)]
+    #dateFilteredDF = df.query('ShipDate in ' + shipDateRng +' & DelivDate in ' + delivDateRng)
+
+
+    shipZip3 = focusTrip['ShipZip3']
+    tripQuantity = focusTrip['Max. Quantity']
+    dateFilteredDF['LoadDistance'] = dateFilteredDF['ShipZip3'].apply(lambda x: distanceReferences[(shipZip3, x)])
+
+    localLoad = dateFilteredDF['LoadDistance'] <= pickUpMax
+    validPallets = dateFilteredDF['Max. Quantity'] + tripQuantity <= maxPallets 
+
+    filteredDF1 =  dateFilteredDF[localLoad & validPallets]
+
+    conZip3 = focusTrip['ConZip3']
+    filteredDF1['UnloadDistance'] = filteredDF1['ConZip3'].apply(lambda x: distanceReferences[(conZip3, x)])
+
+    localUnload = filteredDF1['UnloadDistance'] <= dropOffMax
+
+    filteredDF2 =  filteredDF1[localUnload]
+
+    #print(filteredDF2)
+
+    return filteredDF2
+
+
+def testMyRoute():
+    df = loadDataFrame()
+    row1 = df.ix[8]
+    row2 = df.ix[490]
+
+    #trip(self, origin, destination, shipDate, delivDate, palletQuantity)
+    city11 = row1['Ship City'] + ', ' + row1['Ship State']
+    city12 = row1['Cons City'] + ', ' + row1['Cons State']
+    city21 = row2['Ship City'] + ', ' + row2['Ship State']
+    city22 = row2['Cons City'] + ', ' + row2['Cons State']
+    
+    trip1 = tripObject(row1['ShipZip3'], row1['ConZip3'], row1['ShipDate'], row1['DelivDate'], row1['Max. Quantity'], city11, city12)
+    trip2 = tripObject(row2['ShipZip3'], row2['ConZip3'], row2['ShipDate'], row2['DelivDate'], row2['Max. Quantity'], city21, city22)
+
+    testRoute = routeObject(trip1)
+    #testRoute.addTrip(trip2)
+    print(testRoute.compatibleTrip(trip2))
+
+
+    #print('Uncombined Dist:', trip1.distance + trip2.distance)
+
+    #print('Combined Dist:', testRoute.mileage)
+
+
+    #testRoute.printRoute()
+
+def routeMaker():
+    print("Route Maker started")
+    df = loadDataFrame()
+    
+    #trips = dataFrameToTripList(df[:3000])
+    trips = dataFrameToTripList(df)
+    
+    print("Trips List Generated")
+    
+    routes = []
+
+    pairedRoutes = []
+    maxIdx = len(trips)
+    #print(maxIdx)
+
+    blocks = math.ceil(maxIdx / 1000)
+    #print(blocks)
+
+    matches = 0
+    #blocks = 1
+
+    for b in range(0,blocks):
+
+        ixL = b*1000
+        ixU = min(ixL + 1000, maxIdx)
+        focusTrips = trips[ixL:ixU]
+
+        print("BLOCK:",b)
+        print("Rows:", ixL,ixU)
+        tempMatches = 0
+    
+        for currentIndex, t in enumerate(focusTrips):
+            if not t in pairedRoutes:
+                localLowerIndex = max(0, currentIndex + b*1000 - 1000)
+                localUpperIndex = min(maxIdx, currentIndex + b*1000 + 1000)
+
+                #print(localLowerIndex, localUpperIndex)
+
+                tripsLocalSet = trips[localLowerIndex:localUpperIndex]
+
+                pairedRoutes.append(t)
+                r = routeObject(t)
+                
+                for lIdx, t2 in enumerate(tripsLocalSet):
+                    if not t2 in pairedRoutes:
+                        #print("Testing", lIdx+localLowerIndex)
+                        fits = r.compatibleTrip(t2) #booleanObject to test if the currentIndexedTrip can be matched to the trip
+
+                        #if fits and t != t2:
+                        if fits:
+                            #print(lIdx+localLowerIndex)
+                            #print(t2.originCity, t2.destinationCity)
+                            #tempRoute.append(t2)
+                            pairedRoutes.append(t2)
+                            matches += 1
+                            tempMatches += 1
+                            r.addTrip(t2)
+                            #print(currentIndex+b*1000)
+                            #print(r.zipSequence)
+
+                routes.append(r)
+        print("Routes consolidated in block", b, ":", tempMatches)
+
+
+
+    #print(matches)
+    print("LTL Trips:", len(trips))
+    
+    print("Consolidated into:", len(routes))
+
+    outputList = []
+    for r in routes:
+        outputList.append(r.citySequence)
+        outputList.append(r.zipSequence)
+        outputList.append(r.dateSequence)
+        outputList.append(r.palletChangeSequence)
+        outputList.append([r.mileage])
+
+
+    printList(outputList, "myLTLOuput2.csv")
+    #print()
+
+def loadLTLRoutes():
+    minCities = 6
+    routeData = readCSV("myLTLOuput2.csv")
+
+    data = routeData[1:]
+
+    cities = []
+    zip3s = []
+    dates = []
+    loadChange = []
+    miles = []
+
+
+    for index, row in enumerate(data):
+        remainder = index % 5
+        
+        if remainder == 0:
+            cities.append(row)
+        elif remainder == 1:
+            zip3s.append(row)
+        elif remainder == 2:
+            dates.append(row)
+        elif remainder == 3:
+            loadChange.append(row)
+        elif remainder == 4:
+            miles.append(row)
+        else:
+            pass
+            #print(remainder)
+        
+        
+        # Switch remainder:
+        # case 0:
+        #     cities.append(row)
+        # case 1:
+        #     zip3s.append(row)
+        # case 2:
+        #     dates.append(row)
+        # case 3:
+        #     loadChange.append(row)
+
+    masterList = [['Cities'], ['Zip3'], ['Dates'], ['PalletChange'], ['Mileage']]
+    numElements = len(cities)
+
+    zipList = []
+
+    for i in range(0, numElements):
+        if len(cities[i]) >= minCities:
+            masterList[0].append(cities[i])
+            masterList[1].append(zip3s[i])
+            masterList[2].append(dates[i])
+            masterList[3].append(loadChange[i])
+            masterList[4].append(miles[i])
+            zipList.append(zip3s[i])
+
+    #print(len(masterList[0]))
+    #return masterList
+    return zipList
+
+
+
+
+#Code execution below
+global distanceReferences
+distanceReferences = distRef()
+
+routeMaker()
+
+showRouteMap()
+
+
+
+
+
+
+
+
