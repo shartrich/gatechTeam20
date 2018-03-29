@@ -41,16 +41,16 @@ def matchEquipment(equip):
             temp = e20
             
         elif equip in e40:
-            temp = e20
+            temp = e40
         else:
             print("Error on equipment:", equip)
 
     else:
-        temp str([equip])
+        temp = [equip]
 
 
 #returns the set of matchable equipment
-    return "("+str(e40)[1:-1] + ')'
+    return "("+str(temp)[1:-1] + ')'
 
 
 
