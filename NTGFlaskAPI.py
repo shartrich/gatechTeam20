@@ -9,19 +9,34 @@ from flask.ext.jsonpify import jsonify
 import pandas as pd
 
 
-#db_connect = create_engine('sqlite:///chinook.db')
-# db_connect = create_engine('sqlite:////home/shartrich/mysite/chinook.db')
-
-
-
 app = Flask(__name__)
 api = Api(app)
+
+def addZip3(zipFull):
+    zip = str(zipFull)
+
+    try:
+        t = int(zipFull[:5])
+    except:
+        #print(zipFull)
+        return 'ZipError'
+
+    lZip = len(zip)
+    if lZip >= 5:
+        return zip[:3]
+    elif lZip == 4:
+        return "0" + zip[:2]
+    elif lZip == 3:
+        return "00" + zip[:1]
+    else:
+        return 'ZipError'
 
 @app.route('/')
 def hello_world():
     return 'Welcome to drayage API!'
     
 engine = create_engine("mysql://sql9229495:2JAaltxk9J@sql9.freemysqlhosting.net/sql9229495", encoding='latin1', echo=True)
+
 
 class cities(Resource):
     def get(self):
@@ -51,9 +66,13 @@ class loadTest2(Resource):
         return jsonify(result)
 
 class loadTest3(Resource):
-    def get(self, city, loadType):
+    def get(self, steamShipLine, loadType, shipCity, cLientCity, equipment):
+
+
+
+
         conn = engine.connect()
-        query = conn.execute("select * from drayage_march where Cons_City =%s and `UPPER[Truck_Number]` =%s "  %(city, loadType))
+        query = conn.execute("select * from drayage_march where `UPPER[Driver]` =%s  and = `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Con_Zip =%s and Equipment =%s"  %(steamShipLine, loadType, shipCity, cLientCity, equipment))
 
 
 
@@ -61,9 +80,13 @@ class loadTest3(Resource):
         result = {'data': [dict(zip(tuple (query.keys()) ,i)) for i in query.cursor]}
         return jsonify(result)
 
+
 api.add_resource(cities, '/cities') # Route_1
 api.add_resource(loadTest, '/cities/<city>') # Route_3
 api.add_resource(loadTest2, '/cities/<city>/<loadType>') # Route_3
+api.add_resource(loadTest3, '/cities/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
+
+
 
 #conn = engine.connect()
 #df = pd.read_sql_table('drayage_march', conn)
