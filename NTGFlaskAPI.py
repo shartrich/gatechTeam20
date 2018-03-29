@@ -31,6 +31,32 @@ def addZip3(zipFull):
     else:
         return 'ZipError'
 
+def matchEquipment(equip):
+    equip = equip.upper()
+    e20 = ['20FT CONTAINER', '20 STD', '20 HC']
+    e40 = ['40FT CONTAINER', '40 STD', '40 HC']
+
+    if equip in e20 + e40:
+        if equip in e20:
+            temp = e20
+            
+        elif equip in e40:
+            temp = e20
+        else:
+            print("Error on equipment:", equip)
+
+    else:
+        temp str([equip])
+
+
+#returns the set of matchable equipment
+    return "("+str(e40)[1:-1] + ')'
+
+
+
+
+
+
 @app.route('/')
 def hello_world():
     return 'Welcome to drayage API!'
@@ -67,23 +93,40 @@ class loadTest2(Resource):
 
 class loadTest3(Resource):
     def get(self, steamShipLine, loadType, shipCity, clientCity, equipment):
-
-
-
-
         conn = engine.connect()
         query = conn.execute("select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Con_Zip =%s and Equipment =%s "  %(steamShipLine, loadType, shipCity, clientCity, equipment))
-
+        #query = conn.execute("select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Con_Zip =%s and Equipment in %s "  %(steamShipLine, loadType, shipCity, clientCity, equipment))
         result = {'data': [dict(zip(tuple (query.keys()) ,i)) for i in query.cursor]}
         return jsonify(result)
 
-        
+
+class findMatch(Resource):
+    def get(self, steamShipLine, loadType, shipCity, clientCity, equipment):
+        if loadType == 'EXPORT':
+            retLoadType = 'IMPORT'
+        elif loadType == 'IMPORT':
+            retLoadType = 'EXPORT'
+        else:
+            return "Error on IMPORT/EXPORT label"
+
+        retEquipment = matchEquipment(equipment)
+
+
+        conn = engine.connect()
+        query = conn.execute("select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Con_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, clientCity, retEquipment))
+        result = {'data': [dict(zip(tuple (query.keys()) ,i)) for i in query.cursor]}
+        return jsonify(result)
+
+
+
 
 
 api.add_resource(cities, '/cities') # Route_1
 api.add_resource(loadTest, '/cities/<city>') # Route_3
 api.add_resource(loadTest2, '/cities/<city>/<loadType>') # Route_3
 api.add_resource(loadTest3, '/full/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
+
+api.add_resource(findMatch, '/matches/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
 
 
 
