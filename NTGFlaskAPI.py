@@ -66,25 +66,24 @@ class loadTest2(Resource):
         return jsonify(result)
 
 class loadTest3(Resource):
-    def get(self, steamShipLine, loadType, shipCity, cLientCity, equipment):
+    def get(self, steamShipLine, loadType, shipCity, clientCity, equipment):
 
 
 
 
         conn = engine.connect()
-        query = conn.execute("select * from drayage_march where `UPPER[Driver]` =%s  and = `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Con_Zip =%s and Equipment =%s"  %(steamShipLine, loadType, shipCity, cLientCity, equipment))
-
-
-
+        query = conn.execute("select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Con_Zip =%s and Equipment =%s "  %(steamShipLine, loadType, shipCity, clientCity, equipment))
 
         result = {'data': [dict(zip(tuple (query.keys()) ,i)) for i in query.cursor]}
         return jsonify(result)
+
+        
 
 
 api.add_resource(cities, '/cities') # Route_1
 api.add_resource(loadTest, '/cities/<city>') # Route_3
 api.add_resource(loadTest2, '/cities/<city>/<loadType>') # Route_3
-api.add_resource(loadTest3, '/cities/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
+api.add_resource(loadTest3, '/full/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
 
 
 
