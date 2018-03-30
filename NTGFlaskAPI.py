@@ -133,13 +133,14 @@ class findMatch(Resource):
 
 
 class findMatchV2(Resource):
+    #!edit end to return a json, currently returns dataframe
     def get(self, steamShipLine, loadType, shipCity, clientCity, equipment):
         if loadType == "'EXPORT'" or loadType == '"EXPORT"':
-        retLoadType = "'IMPORT'"
-    elif loadType == "'IMPORT'" or loadType == '"IMPORT"':
-        retLoadType = "'EXPORT'"
-    else:
-        return "Error on IMPORT/EXPORT label"
+            retLoadType = "'IMPORT'"
+        elif loadType == "'IMPORT'" or loadType == '"IMPORT"':
+            retLoadType = "'EXPORT'"
+        else:
+            return "Error on IMPORT/EXPORT label"
 
         retEquipment = matchEquipment(equipment)
 
@@ -147,8 +148,10 @@ class findMatchV2(Resource):
         #!still needs addition of date fields in query to minimize data transfer
         conn = engine.connect()
         queryString = "select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, retEquipment)
-        query = pd.read_sql_query(queryString, conn)
+
         
+        query = pd.read_sql_query(queryString, conn)
+
 
         #rename non-intuitive columns
         query.rename(index=str, columns={'`UPPER[Truck_Number]`': 'SteamShipLine', '`UPPER[Driver]`': 'ImpExp'})
@@ -160,19 +163,26 @@ class findMatchV2(Resource):
 
         #3 digit zips for table from sql
         query['ShipZip3'] = query['Ship_Zip'].apply(addZip3)
-        query['ClientZip3'] = query['Client_Zip'].apply(addZip3)
-
+        query['ClientZip3'] = query['Con_Zip'].apply(addZip3)
 
         #computes distance of single trip and then based on the combined duo
-        query['Distance'] = distanceReferences[(query['ShipZip3'], query['ClientZip3'])]
+        tempDF = zip(query.ShipZip3, query.ClientZip3)
+        newCol = [distanceReferences[(x,y)] for x,y in tempDF]
+        query['Distance'] = newCol
+        
+        
         #combined total of two trips run seperate. *2 because two legs of each
         query['IndivTotalDistance'] = (query['Distance'] + mainDistance) * 2
 
         #deadhead is the single empty leg of a pair
-        query['DeadHead'] = distanceReferences[(shipZip3, query['ClientZip3'])]
+        tempDF = query.ClientZip3
+        newCol = [distanceReferences[(clientZip3,x)] for x in tempDF]
+        query['DeadHead'] = newCol
 
         #distance of the 3 legs if trip was merged
-        query['CombinedTotalDistance'] = query['DeadHead'] + query['Distance'] + mainDistance
+        tempDF = zip(query.DeadHead, query.Distance)
+        newCol = [mainDistance + x + y for x,y in tempDF]
+        query['CombinedTotalDistance'] = newCol
 
         #filters for distance
         query = query.query('CombinedTotalDistance < IndivTotalDistance')
