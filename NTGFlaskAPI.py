@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 from json import dumps
 from flask.ext.jsonpify import jsonify
 import pandas as pd
+import csv
 
 
 app = Flask(__name__)
@@ -18,6 +19,24 @@ engine = create_engine("mysql://sql9229495:2JAaltxk9J@sql9.freemysqlhosting.net/
 def hello_world():
     return 'Welcome to drayage API!'
 
+def readCSV(csvFile):
+    with open(csvFile, 'r') as f:
+        reader = csv.reader(f)
+        data = list(reader)
+    return data
+
+# Assigns a 3-Digit Standard ZipCode 
+def zipSwitcher(integer):
+
+    switcher = {
+        1: "00",
+        2: "0",
+        3: ""
+        }
+
+    s = str(integer)
+
+    return switcher.get(len(s)) + s
 
 def addZip3(zipFull):
     zip = str(zipFull)
@@ -40,8 +59,8 @@ def addZip3(zipFull):
 
 def matchEquipment(equip):
     equip = equip.upper()
-    e20 = ['20FT CONTAINER', '20 STD', '20 HC']
-    e40 = ['40FT CONTAINER', '40 STD', '40 HC']
+    e20 = ["'20FT CONTAINER'", "'20 STD'", "'20 HC'"]
+    e40 = ["'40FT CONTAINER'", "'40 STD'", "'40 HC'"]
 
     if equip in e20 + e40:
         if equip in e20:
@@ -56,11 +75,8 @@ def matchEquipment(equip):
         temp = [equip]
 
 
-#returns the set of matchable equipment
+    #returns the set of matchable equipment
     return "("+str(temp)[1:-1] + ')'
-
-
-
 
 class cities(Resource):
     def get(self):
@@ -118,12 +134,12 @@ class findMatch(Resource):
 
 class findMatchV2(Resource):
     def get(self, steamShipLine, loadType, shipCity, clientCity, equipment):
-        if loadType == 'EXPORT':
-            retLoadType = 'IMPORT'
-        elif loadType == 'IMPORT':
-            retLoadType = 'EXPORT'
-        else:
-            return "Error on IMPORT/EXPORT label"
+        if loadType == "'EXPORT'" or loadType == '"EXPORT"':
+        retLoadType = "'IMPORT'"
+    elif loadType == "'IMPORT'" or loadType == '"IMPORT"':
+        retLoadType = "'EXPORT'"
+    else:
+        return "Error on IMPORT/EXPORT label"
 
         retEquipment = matchEquipment(equipment)
 
@@ -200,8 +216,6 @@ def distRef():
 
     
     return distanceDict
-
-
 
 global distanceReferences
 distanceReferences = distRef()
