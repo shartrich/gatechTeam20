@@ -203,12 +203,6 @@ def distRef():
 
 
 
-
-
-
-
-
-
 global distanceReferences
 distanceReferences = distRef()
 
@@ -218,9 +212,10 @@ distanceReferences = distRef()
 api.add_resource(cities, '/cities') # Route_1
 api.add_resource(loadTest, '/cities/<city>') # Route_3
 api.add_resource(loadTest2, '/cities/<city>/<loadType>') # Route_3
-api.add_resource(loadTest3, '/full/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
+api.add_resource(loadTest3, '/full/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>')
 
-api.add_resource(findMatch, '/matches/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
+api.add_resource(findMatch, '/matches/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>')
+api.add_resource(findMatchV2, '/matchesV2/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') 
 
 
 
