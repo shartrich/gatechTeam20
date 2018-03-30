@@ -7,37 +7,6 @@ from flask.ext.jsonpify import jsonify
 import pandas as pd
 
 
-app = Flask(__name__)
-api = Api(app)
-engine = create_engine("mysql://sql9229495:2JAaltxk9J@sql9.freemysqlhosting.net/sql9229495", encoding='latin1', echo=True)
-
-
-
-
-@app.route('/')
-def hello_world():
-    return 'Welcome to drayage API!'
-
-
-def addZip3(zipFull):
-    zip = str(zipFull)
-
-    try:
-        t = int(zipFull[:5])
-    except:
-        #print(zipFull)
-        return 'ZipError'
-
-    lZip = len(zip)
-    if lZip >= 5:
-        return zip[:3]
-    elif lZip == 4:
-        return "0" + zip[:2]
-    elif lZip == 3:
-        return "00" + zip[:1]
-    else:
-        return 'ZipError'
-
 def matchEquipment(equip):
     equip = equip.upper()
     e20 = ['20FT CONTAINER', '20 STD', '20 HC']
@@ -60,6 +29,33 @@ def matchEquipment(equip):
     return "("+str(temp)[1:-1] + ')'
 
 
+def addZip3(zipFull):
+    zip = str(zipFull).replace('"','').replace("'","")
+
+    try:
+        t = int(zipFull[:5])
+    except:
+        #print(zipFull)
+        return 'ZipError'
+
+    lZip = len(zip)
+    if lZip >= 5:
+        return zip[:3]
+    elif lZip == 4:
+        return "0" + zip[:2]
+    elif lZip == 3:
+        return "00" + zip[:1]
+    else:
+        return 'ZipError'
+
+
+
+
+@app.route('/')
+def hello_world():
+    return 'Welcome to drayage API!'
+    
+engine = create_engine("mysql://sql9229495:2JAaltxk9J@sql9.freemysqlhosting.net/sql9229495", encoding='latin1', echo=True)
 
 
 class cities(Resource):
@@ -112,10 +108,12 @@ class findMatch(Resource):
 
         conn = engine.connect()
         query = conn.execute("select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Con_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, clientCity, retEquipment))
+        #query = conn.execute("select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, retEquipment))
+        
         result = {'data': [dict(zip(tuple (query.keys()) ,i)) for i in query.cursor]}
         return jsonify(result)
 
-
+#returns query resutlts as a pandas table
 class findMatchV2(Resource):
     def get(self, steamShipLine, loadType, shipCity, clientCity, equipment):
         if loadType == 'EXPORT':
@@ -132,36 +130,20 @@ class findMatchV2(Resource):
         conn = engine.connect()
         queryString = "select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, retEquipment)
         query = pd.read_sql_query(queryString, conn)
-        
+        ++6
 
         #rename non-intuitive columns
         query.rename(index=str, columns={'`UPPER[Truck_Number]`': 'SteamShipLine', '`UPPER[Driver]`': 'ImpExp'})
         
-        #add the 3digit zip equivalents and compute distances
-        shipZip3 = addZip3(shipCity)
-        clientZip3 = addZip3(clientCity)
-        mainDistance = distanceReferences[(shipZip3, clientZip3)]
-
-        #3 digit zips for table from sql
+        #add the 3digit zip equivalents
+        #!should put this after date fields maybe
         query['ShipZip3'] = query['Ship_Zip'].apply(addZip3)
-        query['ClientZip3'] = query['Client_Zip'].apply(addZip3)
+        query['ClientZip3'] = query['Ship_Zip'].apply(addZip3)
 
 
-        #computes distance of single trip and then based on the combined duo
-        query['Distance'] = distanceReferences[(query['ShipZip3'], query['ClientZip3'])]
-        #combined total of two trips run seperate. *2 because two legs of each
-        query['IndivTotalDistance'] = (query['Distance'] + mainDistance) * 2
+        filteredTable = filterClientCity(clientCity, query)
 
-        #deadhead is the single empty leg of a pair
-        query['DeadHead'] = distanceReferences[(shipZip3, query['ClientZip3'])]
 
-        #distance of the 3 legs if trip was merged
-        query['CombinedTotalDistance'] = query['DeadHead'] + query['Distance'] + mainDistance
-
-        #filters for distance
-        query = query.query('CombinedTotalDistance < IndivTotalDistance')
-
-        return query
 
 #consider a better method that doesnt need to invoke this O(n^2 is not ideal)
 #!upload this file to PythonAnywhere
@@ -202,8 +184,12 @@ def distRef():
     return distanceDict
 
 
+#returns list of valid matches filterd on client city's zipcode
+def filterClientCity(clientCity, queryResults):
+    validRows = []
 
-
+    for row in queryResults:
+        deadHead = deadHead = distanceReferences[(self.destination, testTrip.origin)]
 
 
 
@@ -212,16 +198,14 @@ def distRef():
 global distanceReferences
 distanceReferences = distRef()
 
-
-
-
-api.add_resource(cities, '/cities') # Route_1
-api.add_resource(loadTest, '/cities/<city>') # Route_3
-api.add_resource(loadTest2, '/cities/<city>/<loadType>') # Route_3
-api.add_resource(loadTest3, '/full/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
+#api.add_resource(loadTest3, '/full/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
 
 api.add_resource(findMatch, '/matches/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') # Route_3
 
+
+
+#conn = engine.connect()
+#df = pd.read_sql_table('drayage_march', conn)
 
 
 
