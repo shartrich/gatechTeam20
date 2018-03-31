@@ -194,10 +194,12 @@ class tripObject:
 		self.loadID = loadID
 		self.equipment = equipment
 		self.dateLimit = dateLimit
-		#
-		# if self.dateLimit[:3] == "CUT":
-		#     print(self.dateLimit)
-
+		# Initialize date parameters with Standard time. It will be updated below
+		self.ETA = pd.to_datetime("01/12", format='%m/%d')
+		self.LFD = pd.to_datetime("01/12", format='%m/%d')
+		self.CUT = pd.to_datetime("01/12", format='%m/%d')
+		self.ERD = pd.to_datetime("01/12", format='%m/%d')
+		
 		self.shipDate = shipDate
 		self.delivDate = delivDate
 
@@ -221,7 +223,8 @@ class tripObject:
 							# OCEAN CASE (4 days b/w ETA and LFD)
 							self.CUT = pd.to_datetime(s, format='%m/%d')
 							self.ERD = pd.to_datetime(s, format='%m/%d') - pd.Timedelta(4, unit='d')
-							print (self.CUT)								
+							# print (self.CUT)
+
 				except:
 					pass
 			# Build CUT from ERD
@@ -239,7 +242,6 @@ class tripObject:
 							# print (self.LFD)								
 				except:
 					pass
-
 
 		elif impExp == "IMPORT":
 			self.origin = portZip
@@ -290,6 +292,7 @@ class tripObject:
 		except:
 			pass
 
+	# Output Related Methods
 	def printTop10Routes(self):
 		if len(self.possibleRoutes) > 0:
 			self.sortPossibleRoutes()
@@ -313,7 +316,6 @@ class tripObject:
 
 		self.possibleRoutes = [route[0] for route in temp]
 		
-
 	def printTrip(self):
 		#print('Route begins:', self.startDate, 'in', self.origin)
 		#print('Route ends:', self.endDate, 'in', self.destination)
@@ -327,6 +329,7 @@ class tripObject:
 			"\n    Equipment:", self.equipment, \
 			"\n    Miles:", self.distance)
 
+	# Builds routes given conditions	
 	def findRoute(self, testTrips):
 
 		if self.impExp == "IMPORT":
@@ -357,8 +360,11 @@ class tripObject:
 				if self.origin == testTrip.destination:
 					# Match Import with Export only
 					if testTrip.impExp == "EXPORT":
+						# Date Requirements
+						if self.ETA < testTrip.CUT and self.LFD in pd.date_range(testTrip.ERD - pd.Timedelta(2, unit='d'), testTrip.ERD + pd.Timedelta(2, unit='d')):
+							print (testTrip.CUT)
 						#if self.delivDate <= testTrip.shipDate and testTrip.shipDate <= self.delivDate + pd.Timedelta(7, unit='d'):
-						if self.delivDate in pd.date_range(testTrip.delivDate - pd.Timedelta(2, unit='d'),testTrip.delivDate + pd.Timedelta(2, unit='d')):
+						# if self.delivDate in pd.date_range(testTrip.delivDate - pd.Timedelta(2, unit='d'),testTrip.delivDate + pd.Timedelta(2, unit='d')):
 							# Match Equipment
 							if self.equipment == testTrip.equipment:
 								if not testTrip in matchedItems:
@@ -381,8 +387,10 @@ class tripObject:
 				if self.destination == testTrip.origin:
 					# Match Export with Import only
 					if testTrip.impExp == "IMPORT":
-					#if self.shipDate >= testTrip.delivDate and testTrip.delivDate + pd.Timedelta(7, unit='d') >= self.shipDate:
-						if testTrip.delivDate in pd.date_range(self.delivDate - pd.Timedelta(2, unit='d'), self.delivDate + pd.Timedelta(2, unit='d')):
+						# Date Requirements
+						if self.CUT > testTrip.ETA and self.ERD in pd.date_range(testTrip.LFD - pd.Timedelta(2, unit='d'), testTrip.LFD + pd.Timedelta(2, unit='d')):
+						#if self.shipDate >= testTrip.delivDate and testTrip.delivDate + pd.Timedelta(7, unit='d') >= self.shipDate:
+						# if testTrip.delivDate in pd.date_range(self.delivDate - pd.Timedelta(2, unit='d'), self.delivDate + pd.Timedelta(2, unit='d')):
 							# Match Equipment
 							if self.equipment == testTrip.equipment:
 								if not testTrip in matchedItems:
@@ -426,14 +434,16 @@ class routeObject:
 		print("DeadHead Miles:", self.deadHead)
 		print("\n")
 
-
+# Load CSV file as a dataFrame object (Pandas package)
 def loadDataFrame(csvFile = "DrayageTestRun.csv"):
 	# Use Panda package to load csv file as a dataFrame object
 	dataFrame = pd.read_csv(csvFile, encoding = "ISO-8859-1") #adjust encoding as necessary
 	
+	# Add columns with converted 3-Digit Standard ZipCode
 	dataFrame['ShipZip3'] = dataFrame['Ship Zip'].apply(addZip3)
 	dataFrame['ConsZip3'] = dataFrame['Con Zip'].apply(addZip3)
 
+	# Read in date columns either as date formats
 	try:
 		dataFrame['ShipDate'] = pd.to_datetime(dataFrame['Ship Date'], format='%m/%d/%Y')
 		dataFrame['DelivDate'] = pd.to_datetime(dataFrame['Deliv Date'], format='%m/%d/%Y')
@@ -442,6 +452,7 @@ def loadDataFrame(csvFile = "DrayageTestRun.csv"):
 		dataFrame['ShipDate'] = pd.to_datetime(dataFrame['Ship Date'])
 		dataFrame['DelivDate'] = pd.to_datetime(dataFrame['Deliv Date'])
 
+	# Output dataFrame object
 	return dataFrame
 
 # Assigns a 3-Digit Standard ZipCode
@@ -467,6 +478,7 @@ def addZip3(zipFull):
 def fromDistance(baseZip3, zip3):
 	return distanceReferences[(baseZip3, zip3)]
 
+# Converts dataFrame object to List of Lists
 def dataFrameToTripList(df):
 	trips = []
 	items = len(df)
