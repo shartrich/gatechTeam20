@@ -7,12 +7,12 @@ from flask.ext.jsonpify import jsonify
 import pandas as pd
 import csv
 
+import re
+
 
 app = Flask(__name__)
 api = Api(app)
 engine = create_engine("mysql://sql9229495:2JAaltxk9J@sql9.freemysqlhosting.net/sql9229495", encoding='latin1', echo=True)
-
-
 
 
 @app.route('/')
@@ -78,6 +78,73 @@ def matchEquipment(equip):
     #returns the set of matchable equipment
     return "("+str(temp)[1:-1] + ')'
 
+
+#takes in raw inpurt and returns the proper 2 dates
+def retrieveDates(rawInput, impExp):
+
+    form = impExp.replace("'", "").replace('"', "").upper() #unnecessary, but quality control
+    inp = rawInput.replace("'", "").replace('"', "").upper() #unnecessary, but quality control
+    
+    #construct a default date to use if none can be extracted
+    tod = pd.Timestamp.today() - datetime.timedelta(1)
+
+    #create dictionary with defaults for all values as yesterday
+    dateLimits = {}
+    #dateLimits["ETA"] = tod
+    #dateLimits["LFD"] = tod
+    #dateLimits["CUT"] = tod
+    #dateLimits["ERD"] = tod
+
+    #regex pattern with groups for word1, date1; word 2, date2
+    pat = re.compile(r"(?P<word1>ERD|ETA|LFD|CUT)\s?"   \
+                     + "(?P<date1>\d{1,2}\/\d{1,2}\/{0,1}\/{0,4})" \
+                     + "([^a-zA-Z0-9\n]{0,3}"    \
+                     + "(?P<word2>ERD|ETA|LFD|CUT)?\s?" \
+                     + "(?P<date2>\d{1,2}\/\d{1,2}\/{0,1}\/{0,4}))?")
+    
+    m = pat.search(inp)
+    
+    #if regex fails
+    if m == None:
+        dateLimits["ETA"] = tod
+        dateLimits["LFD"] = tod
+        dateLimits["CUT"] = tod
+        dateLimits["ERD"] = tod
+        return dateLimits
+
+    #export has CUT and ERD
+    #!need to add year
+    elif form == "EXPORT":
+        if 'date2' in m.groupdict().keys(): #means it has both CUT and ERD
+            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year)
+            dateLimits[m.group("word2")] = pd.to_datetime(m.group("date2"), format='%m/%d').replace(year = tod.year)
+
+        #if only 1 date was captured
+        elif 'date1' in m.groupdict().keys(): #means it has both CUT and ERD
+            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year)
+
+            if m.group("word1") == "CUT":
+                dateLimits["ERD"] = dateLimits["CUT"] - datetime.timedelta(4)
+            if m.group("word1") == "ERD":
+                dateLimits["CUT"] = dateLimits["ERD"] + datetime.timedelta(4)
+        
+    #has LFD and ETA
+    elif form == "IMPORT":
+        if 'date2' in m.groupdict().keys(): #means it has both LFD and ETA
+            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year)
+            dateLimits[m.group("word2")] = pd.to_datetime(m.group("date2"), format='%m/%d').replace(year = tod.year)
+
+        #if only 1 date was captured
+        elif 'date1' in m.groupdict().keys(): #means it has only one item
+            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year)
+
+            if m.group("word1") == "ETA":
+                dateLimits["LFD"] = dateLimits["ETA"] + datetime.timedelta(4)
+            if m.group("word1") == "LFD":
+                dateLimits["ETA"] = dateLimits["LFD"] - datetime.timedelta(4)
+    
+    return dateLimits
+
 class cities(Resource):
     def get(self):
         conn = engine.connect() # connect to database
@@ -113,7 +180,6 @@ class loadTest3(Resource):
         result = {'data': [dict(zip(tuple (query.keys()) ,i)) for i in query.cursor]}
         return jsonify(result)
 
-
 class findMatch(Resource):
     def get(self, steamShipLine, loadType, shipCity, clientCity, equipment):
         if loadType == 'EXPORT':
@@ -131,8 +197,8 @@ class findMatch(Resource):
         result = {'data': [dict(zip(tuple (query.keys()) ,i)) for i in query.cursor]}
         return jsonify(result)
 
-
 class findMatchV2(Resource):
+
     #!edit end to return a json, currently returns dataframe
     def get(self, steamShipLine, loadType, shipCity, clientCity, equipment):
         if loadType == "'EXPORT'" or loadType == '"EXPORT"':
@@ -188,6 +254,8 @@ class findMatchV2(Resource):
         query = query.query('CombinedTotalDistance < IndivTotalDistance')
 
         return query
+
+
 
 #consider a better method that doesnt need to invoke this O(n^2 is not ideal)
 #!upload this file to PythonAnywhere
