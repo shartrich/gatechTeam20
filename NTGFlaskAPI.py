@@ -80,7 +80,7 @@ def matchEquipment(equip):
 
 
 #takes in raw inpurt and returns the proper 2 dates
-def retrieveDates(rawInput, impExp):
+def retreiveDates(rawInput, impExp):
 
     form = impExp.replace("'", "").replace('"', "").upper() #unnecessary, but quality control
     inp = rawInput.replace("'", "").replace('"', "").upper() #unnecessary, but quality control
@@ -127,6 +127,8 @@ def retrieveDates(rawInput, impExp):
                 dateLimits["ERD"] = dateLimits["CUT"] - datetime.timedelta(4)
             if m.group("word1") == "ERD":
                 dateLimits["CUT"] = dateLimits["ERD"] + datetime.timedelta(4)
+
+        retList[dateLimits["CUT"], dateLimits["CUT"]]
         
     #has LFD and ETA
     elif form == "IMPORT":
@@ -142,8 +144,16 @@ def retrieveDates(rawInput, impExp):
                 dateLimits["LFD"] = dateLimits["ETA"] + datetime.timedelta(4)
             if m.group("word1") == "LFD":
                 dateLimits["ETA"] = dateLimits["LFD"] - datetime.timedelta(4)
+
+        retList[dateLimits["ETA"], dateLimits["LFD"]]
     
-    return dateLimits
+    #returns the two items in a dictionary
+    #return dateLimits
+
+    #returns two items in a list (chronological order)
+    return retList
+
+
 
 class cities(Resource):
     def get(self):
@@ -255,6 +265,108 @@ class findMatchV2(Resource):
 
         return query
 
+class findMatchV3(Resource):
+
+    #!edit end to return a json, currently returns dataframe
+    def get(self, steamShipLine, loadType, shipCity, clientCity, equipment, rawInput):
+        loadType = loadType.upper()
+        if loadType == "'EXPORT'" or loadType == '"EXPORT"':
+            retLoadType = "'IMPORT'"
+        elif loadType == "'IMPORT'" or loadType == '"IMPORT"':
+            retLoadType = "'EXPORT'"
+        else:
+            return "Error on IMPORT/EXPORT label"
+
+
+        #returns either [ETA, LFD] or [ERD, CUT]
+        dateLimits = retreiveDates(rawInput, loadType)
+
+
+        #grabs a list of valid matching equipment items
+        retEquipment = matchEquipment(equipment)
+
+        #connect to DB and retreive basic results
+        #!still needs addition of date fields in query to minimize data transfer
+        conn = engine.connect()
+        queryString = "select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, retEquipment)
+        
+        query = pd.read_sql_query(queryString, conn)
+
+        #rename non-intuitive columns
+        query.rename(index=str, columns={'`UPPER[Truck_Number]`': 'SteamShipLine', '`UPPER[Driver]`': 'ImpExp', 'Trailer Number': 'rawInput'})
+        
+        #add the 3digit zip equivalents and compute distances
+        shipZip3 = addZip3(shipCity)
+        clientZip3 = addZip3(clientCity)
+        mainDistance = distanceReferences[(shipZip3, clientZip3)]
+
+        #3 digit zips for table from sql
+        query['ShipZip3'] = query['Ship_Zip'].apply(addZip3)
+        query['ClientZip3'] = query['Con_Zip'].apply(addZip3)
+
+        #computes distance of single trip and then based on the combined duo
+        tempDF = zip(query.ShipZip3, query.ClientZip3)
+        newCol = [distanceReferences[(x,y)] for x,y in tempDF]
+        query['Distance'] = newCol
+        
+        
+        #combined total of two trips run seperate. *2 because two legs of each
+        query['IndivTotalDistance'] = (query['Distance'] + mainDistance) * 2
+
+        #deadhead is the single empty leg of a pair
+        tempDF = query.ClientZip3
+        newCol = [distanceReferences[(clientZip3,x)] for x in tempDF]
+        query['DeadHead'] = newCol
+
+        #distance of the 3 legs if trip was merged
+        tempDF = zip(query.DeadHead, query.Distance)
+        newCol = [mainDistance + x + y for x,y in tempDF]
+        query['CombinedTotalDistance'] = newCol
+
+
+        #filters for distance
+        query = query.query('CombinedTotalDistance < IndivTotalDistance')
+
+        #Turns the raw input into 2 viable dates
+        tempDF = zip(query.rawInput, query.ImpExp)
+        newCol = zip([retreiveDates(x,y) for x,y in tempDF])
+        query['DateLim1'] = newCol[0]
+        query['DateLim2'] = newCol[1]
+
+        #filters for datesLimits
+        if loadType == "'IMPORT'":
+            #list of trips all exports
+
+            #LFD to ERD
+            query['LFDtoERD'] = abs(query.date[0] - dateLimits[1])
+
+            #ETA to CUT
+            query['ETAtoCUT'] = query.date[1] - dateLimits[0]
+
+
+        elif loadType == "'EXPORT'":
+            #LFD to ERD
+            query['LFDtoERD'] = abs(query.date[1] - dateLimits[0])
+
+            #ETA to CUT
+            query['ETAtoCUT'] = -dateLimits[1] + query.date[0]
+
+        #date filtering query:::
+        query = query.query("LDFtoERD <= 2 and ETAtoCUT >= 0")
+
+
+        #return dfToResponse(query)
+
+        return query
+
+
+#takes a filtered pandas dataframe and returns a JSON API response
+def dfToResponse(df):
+    
+    
+
+    result = {'data': [dict(zip(tuple (query.keys()) ,i)) for i in query.cursor]}
+    return jsonify(result)
 
 
 #consider a better method that doesnt need to invoke this O(n^2 is not ideal)
@@ -308,6 +420,7 @@ api.add_resource(loadTest3, '/full/<steamShipLine>/<loadType>/<shipCity>/<client
 
 api.add_resource(findMatch, '/matches/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>')
 api.add_resource(findMatchV2, '/matchesV2/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>') 
+api.add_resource(findMatchV3, '/matchesV2/<steamShipLine>/<loadType>/<shipCity>/<clientCity>/<equipment>/<rawInput>') 
 
 
 
