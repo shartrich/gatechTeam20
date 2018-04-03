@@ -244,7 +244,10 @@ def matchMaker():
     query = pd.read_sql_query(queryString, conn)
 
     #rename non-intuitive columns
-    query.rename(index=str, columns={'`UPPER[Truck_Number]`': 'SteamShipLine', '`UPPER[Driver]`': 'ImpExp', 'Trailer Number': 'rawInput'})
+    print(query.keys()) 
+    query.rename(index=str, columns={'`UPPER[Truck_Number]`': 'SteamShipLine', '`UPPER[Driver]`': 'ImpExp', 'Trailer_Number': 'rawInput'})
+    query.rename(columns={'UPPER[Truck_Number]': 'SteamShipLine', 'UPPER[Driver]': 'ImpExp', 'Trailer_Number': 'rawInput'}, inplace=True)
+    print(query.keys())
     
     #add the 3digit zip equivalents and compute distances
     shipZip3 = addZip3(shipCity)
@@ -280,7 +283,7 @@ def matchMaker():
 
     #Turns the raw input into 2 viable dates
     tempDF = zip(query.rawInput, query.ImpExp)
-    newCol = zip([retreiveDates(x,y) for x,y in tempDF])
+    newCol = list(zip([retreiveDates(x,y) for x,y in tempDF]))
     query['DateLim1'] = newCol[0]
     query['DateLim2'] = newCol[1]
 
