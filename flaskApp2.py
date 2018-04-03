@@ -9,7 +9,7 @@ import csv
 
 import re
 import datetime
-
+import numpy as np
 
 app = Flask(__name__)
 #api = Api(app)
@@ -84,6 +84,8 @@ def matchEquipment(equip):
 
 #takes in raw inpurt and returns the proper 2 dates
 def retreiveDates(rawInput, impExp):
+    #print("XXXXXXXXXX", rawInput, impExp)
+
 
     form = impExp.replace("'", "").replace('"', "").upper() #unnecessary, but quality control
     inp = rawInput.replace("'", "").replace('"', "").upper() #unnecessary, but quality control
@@ -98,6 +100,7 @@ def retreiveDates(rawInput, impExp):
     #dateLimits["CUT"] = tod
     #dateLimits["ERD"] = tod
 
+    #print("XXXXXXXXXX2", inp, form)
     #regex pattern with groups for word1, date1; word 2, date2
     pat = re.compile(r"(?P<word1>ERD|ETA|LFD|CUT)\s?"   \
                      + "(?P<date1>\d{1,2}\/\d{1,2}\/{0,1}\/{0,4})" \
@@ -107,7 +110,8 @@ def retreiveDates(rawInput, impExp):
     
     m = pat.search(inp)
     
-    print(m.groupdict().keys())
+    #print(m.groupdict().keys())
+    #retList = []
     
     #if regex fails
     if m == None:
@@ -133,7 +137,7 @@ def retreiveDates(rawInput, impExp):
             if m.group("word1") == "ERD":
                 dateLimits["CUT"] = dateLimits["ERD"] + datetime.timedelta(4)
 
-        retList = [dateLimits["CUT"], dateLimits["CUT"]]
+        retList = [dateLimits["ERD"], dateLimits["CUT"]]
         
     #has LFD and ETA
     elif form == "IMPORT":
@@ -150,11 +154,12 @@ def retreiveDates(rawInput, impExp):
             if m.group("word1") == "LFD":
                 dateLimits["ETA"] = dateLimits["LFD"] - datetime.timedelta(4)
 
+    
         retList = [dateLimits["ETA"], dateLimits["LFD"]]
     
     #returns the two items in a dictionary
     #return dateLimits
-
+    #print('RETLIST', retList)
     #returns two items in a list (chronological order)
     return retList
 
@@ -242,12 +247,14 @@ def matchMaker():
     queryString = "select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, retEquipment)
     
     query = pd.read_sql_query(queryString, conn)
+    
+    print(query)
 
     #rename non-intuitive columns
-    print(query.keys()) 
-    query.rename(index=str, columns={'`UPPER[Truck_Number]`': 'SteamShipLine', '`UPPER[Driver]`': 'ImpExp', 'Trailer_Number': 'rawInput'})
-    query.rename(columns={'UPPER[Truck_Number]': 'SteamShipLine', 'UPPER[Driver]': 'ImpExp', 'Trailer_Number': 'rawInput'}, inplace=True)
-    print(query.keys())
+    #print(query.keys()) 
+    query.rename(index=str, columns={'`UPPER[Truck_Number]`': 'ImpExp', '`UPPER[Driver]`': 'SteamShipLine', 'Trailer_Number': 'rawInput'})
+    query.rename(columns={'UPPER[Truck_Number]': 'ImpExp', 'UPPER[Driver]': 'SteamShipLine', 'Trailer_Number': 'rawInput'}, inplace=True)
+    #print(query.keys())
     
     #add the 3digit zip equivalents and compute distances
     shipZip3 = addZip3(shipCity)
@@ -282,31 +289,40 @@ def matchMaker():
     query = query.query('CombinedTotalDistance < IndivTotalDistance')
 
     #Turns the raw input into 2 viable dates
-    tempDF = zip(query.rawInput, query.ImpExp)
-    newCol = list(zip([retreiveDates(x,y) for x,y in tempDF]))
-    query['DateLim1'] = newCol[0]
-    query['DateLim2'] = newCol[1]
+    tempDF = zip(query.rawInput, query.ImpExp)      #error is returning not loadType, but 
+    newCol = [retreiveDates(x,y) for x,y in tempDF]
+    newCol1 = [x[0] for x in newCol]
+    newCol2 = [x[1] for x in newCol]
+    
+    
+    query['DateLim1'] = newCol1
+    query['DateLim2'] = newCol2
+    
+    #query['DateLim1'] = newCol1
+    #query['DateLim2'] = newCol2
 
     #filters for datesLimits
     if loadType == "'IMPORT'":
         #list of trips all exports
 
         #LFD to ERD
-        query['LFDtoERD'] = abs(query.date[0] - dateLimits[1])
+        query['LFDtoERD'] = (abs(query.DateLim1 - dateLimits[1]) / np.timedelta64(1, 'D')).astype(int)
 
         #ETA to CUT
-        query['ETAtoCUT'] = query.date[1] - dateLimits[0]
+        query['ETAtoCUT'] = ((query.DateLim2 - dateLimits[0])/ np.timedelta64(1, 'D')).astype(int)
 
 
     elif loadType == "'EXPORT'":
         #LFD to ERD
-        query['LFDtoERD'] = abs(query.date[1] - dateLimits[0])
+        query['LFDtoERD'] = (abs(query.DateLim2 - dateLimits[0])/ np.timedelta64(1, 'D')).astype(int)
 
         #ETA to CUT
-        query['ETAtoCUT'] = -dateLimits[1] + query.date[0]
+        query['ETAtoCUT'] = ((-dateLimits[1] + query.DateLim1)/ np.timedelta64(1, 'D')).astype(int)
 
+
+    #print("XXXXXXX", query.LFDtoERD, query.ETAtoCUT)
     #date filtering query:::
-    query = query.query("LDFtoERD <= 2 and ETAtoCUT >= 0")
+    query = query.query("LFDtoERD <= 2 and ETAtoCUT >= 0")
 
 
     #return dfToResponse(query)
