@@ -1,9 +1,6 @@
 import flask
 from flask import Flask, request
-from flask_restful import Resource, Api
 from sqlalchemy import create_engine
-from json import dumps
-from flask.ext.jsonpify import jsonify
 import pandas as pd
 import csv
 
@@ -210,20 +207,27 @@ global distanceReferences
 distanceReferences = distRef()
 
 
-
 @app.route('/matchMaker')
 def matchMaker():
-    steamShipLine = "'" + request.args.get('steamShipLine', default = 'X', type = str) + "'"
-    loadType = "'" + request.args.get('loadType', default = 'X', type = str) + "'"
-    shipCity = "'" + request.args.get('shipCity', default = 'X', type = str) + "'"
-    clientCity = "'" + request.args.get('clientCity', default = 'X', type = str) + "'"
-    equipment = "'" + request.args.get('equipment', default = 'X', type = str) + "'"
-    rawInput = "'" + request.args.get('rawInput', default = 'X', type = str) + "'"
-    #print(rawInput)
+    #single input var is integer loadID, use SQL to return trip data items
+    loadID =  request.args.get('loadID', default = 0, type = int)
+    dataTable =  request.args.get('table', default = 'drayage_march', type = str)
 
-    #!if any are "'X'"" quit program and return error
+    #query to look into target trip
+    firstQuery = "SELECT * from %s where ID = %s"  %(dataTable, loadID)
     
+    #return SQL query as pandas table
+    conn = engine.connect()
+    focusLoad = pd.read_sql_query(firstQuery, conn)
+    conn.close()
 
+    #declare all needed values of trip
+    loadType = focusLoad['UPPER[Truck_Number]'].values[0]
+    steamShipLine = focusLoad['UPPER[Driver]'].values[0]
+    clientCity = focusLoad['Con_Zip'].values[0]
+    shipCity = focusLoad['Ship_Zip'].values[0]
+    equipment = focusLoad['Equipment'].values[0]
+    rawInput = focusLoad['Trailer_Number'].values[0]
 
 
     loadType = loadType.upper()
@@ -234,7 +238,6 @@ def matchMaker():
     else:
         return "Error on IMPORT/EXPORT label"
 
-
     #returns either [ETA, LFD] or [ERD, CUT]
     dateLimits = retreiveDates(rawInput, loadType)
 
@@ -244,11 +247,12 @@ def matchMaker():
 
     #connect to DB and retreive basic results
     #!still needs addition of date fields in query to minimize data transfer
-    conn = engine.connect()
-    #! adjust drayage_march to generic entry via .get
-    queryString = "select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, retEquipment)
     
+    conn = engine.connect()
+    #! adjust drayage_march to generic entry via
+    queryString = "SELECT * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, retEquipment)    
     query = pd.read_sql_query(queryString, conn)
+    conn.close()
     
     #print(query)
 
@@ -323,11 +327,9 @@ def matchMaker():
     #date filtering query:::
     query = query.query("LFDtoERD <= 2 and ETAtoCUT >= 0")
 
-
     #return dfToResponse(query)
     
-    return query.to_json()
-
+    return query[loadID].to_json()
 
 
 if __name__ == '__main__':
