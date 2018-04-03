@@ -205,6 +205,7 @@ def distRef():
     
     return distanceDict
 
+
 global distanceReferences
 distanceReferences = distRef()
 
@@ -244,11 +245,12 @@ def matchMaker():
     #connect to DB and retreive basic results
     #!still needs addition of date fields in query to minimize data transfer
     conn = engine.connect()
+    #! adjust drayage_march to generic entry via .get
     queryString = "select * from drayage_march where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s "  %(steamShipLine, retLoadType, shipCity, retEquipment)
     
     query = pd.read_sql_query(queryString, conn)
     
-    print(query)
+    #print(query)
 
     #rename non-intuitive columns
     #print(query.keys()) 
