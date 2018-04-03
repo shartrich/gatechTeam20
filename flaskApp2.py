@@ -125,7 +125,7 @@ def retreiveDates(rawInput, impExp):
             dateLimits[m.group("word2")] = pd.to_datetime(m.group("date2"), format='%m/%d').replace(year = tod.year)
 
         #if only 1 date was captured
-        elif if m.group('date1') != None: #means it has both CUT and ERD
+        elif m.group('date1') != None: #means it has both CUT and ERD
             dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year)
 
             if m.group("word1") == "CUT":
