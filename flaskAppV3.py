@@ -309,7 +309,7 @@ def matchMaker():
         #list of trips all exports
 
         #LFD to ERD
-        query['LFDtoERD'] = (abs(query.DateLim1 - dateLimits[1]) / np.timedelta64(1, 'D')).astype(int)
+        query['LFDtoERD'] = ((dateLimits[1] - query.DateLim1) / np.timedelta64(1, 'D')).astype(int)
 
         #ETA to CUT
         query['ETAtoCUT'] = ((query.DateLim2 - dateLimits[0])/ np.timedelta64(1, 'D')).astype(int)
@@ -317,7 +317,7 @@ def matchMaker():
 
     elif loadType == "'EXPORT'":
         #LFD to ERD
-        query['LFDtoERD'] = (abs(query.DateLim2 - dateLimits[0])/ np.timedelta64(1, 'D')).astype(int)
+        query['LFDtoERD'] = ((query.DateLim2 - dateLimits[0])/ np.timedelta64(1, 'D')).astype(int)
 
         #ETA to CUT
         query['ETAtoCUT'] = ((-dateLimits[1] + query.DateLim1)/ np.timedelta64(1, 'D')).astype(int)
