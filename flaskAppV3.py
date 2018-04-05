@@ -8,9 +8,23 @@ import re
 import datetime
 import numpy as np
 
+
+
+server = "sql9.freemysqlhosting.net"
+name = "sql9229495"
+username = "sql9229495"
+password = "2JAaltxk9J"
+
+engineString = "mysql://" + username + password + "@" + server + name 
+
+#engine = create_engine("mysql://sql9229495:2JAaltxk9J@sql9.freemysqlhosting.net/sql9229495", encoding='latin1', echo=True)
+engine = create_engine(engineString)
+
+
+
 app = Flask(__name__)
-#api = Api(app)
-engine = create_engine("mysql://sql9229495:2JAaltxk9J@sql9.freemysqlhosting.net/sql9229495", encoding='latin1', echo=True)
+
+
 
 
 @app.route('/')
