@@ -7,8 +7,8 @@ from flask.ext.jsonpify import jsonify
 import re
 import datetime
 import numpy as np
+import json
 
-from collections import OrderedDict, defaultdict
 
 
 defaults = {}
@@ -141,12 +141,12 @@ def retreiveDates(rawInput, impExp):
     #!need to add year
     elif form == "EXPORT":
         if m.group('date2') != None: #means it has both CUT and ERD
-            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year)
-            dateLimits[m.group("word2")] = pd.to_datetime(m.group("date2"), format='%m/%d').replace(year = tod.year)
+            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year).date()
+            dateLimits[m.group("word2")] = pd.to_datetime(m.group("date2"), format='%m/%d').replace(year = tod.year).date()
 
         #if only 1 date was captured
         elif m.group('date1') != None: #means it has both CUT and ERD
-            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year)
+            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year).date()
 
             if m.group("word1") == "CUT":
                 dateLimits["ERD"] = dateLimits["CUT"] - datetime.timedelta(4)
@@ -158,12 +158,12 @@ def retreiveDates(rawInput, impExp):
     #has LFD and ETA
     elif form == "IMPORT":
         if m.group('date2') != None: #means it has both LFD and ETA
-            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year)
-            dateLimits[m.group("word2")] = pd.to_datetime(m.group("date2"), format='%m/%d').replace(year = tod.year)
+            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year).date()
+            dateLimits[m.group("word2")] = pd.to_datetime(m.group("date2"), format='%m/%d').replace(year = tod.year).date()
 
         #if only 1 date was captured
         elif m.group('date1') != None: #means it has only one item
-            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year)
+            dateLimits[m.group("word1")] = pd.to_datetime(m.group("date1"), format='%m/%d').replace(year = tod.year).date()
 
             if m.group("word1") == "ETA":
                 dateLimits["LFD"] = dateLimits["ETA"] + datetime.timedelta(4)
@@ -252,7 +252,7 @@ def matchMaker():
 
     #return SQL query as pandas table
     conn = engine.connect()
-    focusLoad = pd.read_sql_query(firstQuery, conn)
+    focusLoad = pd.read_sql_query(firstQuery, conn, index_col=['Id'])
     conn.close()
 
 
@@ -290,7 +290,8 @@ def matchMaker():
     queryString = "SELECT * from %s where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s " %(dataTable, steamShipLine, retLoadType, shipCity, retEquipment)
 
 
-    query = pd.read_sql_query(queryString, conn)
+    query = pd.read_sql_query(queryString, conn, index_col=['Id'])
+    #query = pd.read_sql_query(queryString, conn)
     conn.close()
 
 
@@ -349,7 +350,6 @@ def matchMaker():
         #list of trips all exports
 
         #LFD to ERD
-        #query['LFDtoERD'] = ((dateLimits[1] - query.DateLim1) / np.timedelta64(1, 'D')).astype(int)
         query['LFDtoERD'] = ((query.DateLim1 - dateLimits[1]) / np.timedelta64(1, 'D')).astype(int)
 
         #ETA to CUT
@@ -366,23 +366,15 @@ def matchMaker():
     else:
         return "Error on IMPORT/EXPORT label"
 
-    #print("X1", focusLoad)
-    #print("X2", query)
     query = query.query("LFDtoERD <= 2 and ETAtoCUT >= 0")
 
-    cols = ['Id','DeadHead']
-    query['json_col'] = query[cols].apply(lambda x: x.to_json(), axis=1)
-
-
-
-    result = {'Potenital Matches for ' + loadID + ":": list(query['json_col'])}
+    kys = tuple(['LoadID'] + list(query.keys()))
+    res = [dict(zip(kys, i)) for i in query.itertuples(index=True)]
+    print(res[0])
+    print(type(res[0]))
+    result = {'Potential Matches for ' + str(loadID): res}
 
     return jsonify(result)
-
-
-
-    return query['json_col']
-    #return jsonify(result)
 
 
 
