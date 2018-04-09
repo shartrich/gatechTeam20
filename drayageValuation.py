@@ -11,6 +11,9 @@ import random
 import copy
 from operator import itemgetter
 
+global ctMaster
+ctMaster = {}
+
 ''' VISUAL AID FOR ROUTING
 def loadMajorZips():    #returns list of major zips as [3firstdigits, Zipcode, latitude, longitude]
 	zips = readCSV("zipcodeOutputData5.csv")
@@ -258,7 +261,8 @@ class tripObject:
 							# OCEAN CASE (4 days b/w ETA and LFD)
 							self.ETA = pd.to_datetime(s, format='%m/%d')
 							self.LFD = pd.to_datetime(s, format='%m/%d') + pd.Timedelta(4, unit='d')
-							# print (self.ETA)								
+							# print (self.ETA)
+
 				except:
 					pass
 			# Build ETA from LFD
@@ -362,7 +366,7 @@ class tripObject:
 					if testTrip.impExp == "EXPORT":
 						# Date Requirements
 						if self.ETA < testTrip.CUT and self.LFD in pd.date_range(testTrip.ERD - pd.Timedelta(2, unit='d'), testTrip.ERD + pd.Timedelta(2, unit='d')):
-							print (testTrip.CUT)
+							#print (testTrip.CUT)
 						#if self.delivDate <= testTrip.shipDate and testTrip.shipDate <= self.delivDate + pd.Timedelta(7, unit='d'):
 						# if self.delivDate in pd.date_range(testTrip.delivDate - pd.Timedelta(2, unit='d'),testTrip.delivDate + pd.Timedelta(2, unit='d')):
 							# Match Equipment
@@ -374,6 +378,9 @@ class tripObject:
 									comparative = distanceReferences[(testTrip.origin, testTrip.destination)] + distanceReferences[(self.origin, self.destination)]
 
 									if deadHead <= comparative:
+										print(self.loadID, testTrip.loadID)
+										ctMaster[self.loadID] += 1
+
 										newRoute = routeObject(importTrip = self, exportTrip = testTrip, deadHead = deadHead)
 										self.possibleRoutes.append(newRoute)
 
@@ -400,6 +407,8 @@ class tripObject:
 									comparative = distanceReferences[(testTrip.origin, testTrip.destination)] + distanceReferences[(self.origin, self.destination)]
 
 									if deadHead <= comparative:
+										print(self.loadID, testTrip.loadID)
+										ctMaster[self.loadID] += 1
 										newRoute = routeObject(importTrip = testTrip, exportTrip = self, deadHead = deadHead)
 										self.possibleRoutes.append(newRoute)
 		
@@ -436,6 +445,8 @@ class routeObject:
 
 # Load CSV file as a dataFrame object (Pandas package)
 def loadDataFrame(csvFile = "DrayageTestRun.csv"):
+
+
 	# Use Panda package to load csv file as a dataFrame object
 	dataFrame = pd.read_csv(csvFile, encoding = "ISO-8859-1") #adjust encoding as necessary
 	
@@ -483,12 +494,16 @@ def dataFrameToTripList(df):
 	trips = []
 	items = len(df)
 
+
+
 	for idx in range(0, items):
 		row = df.ix[idx]
 		#print(row)
 
 		city1 = str(row['Ship City']) + ', ' + str(row['Ship State'])
 		city2 = str(row['Cons City']) + ', ' + str(row['Cons State'])
+
+		ctMaster[row.Id] = 0
 
 		try:
 			temp = tripObject(row['Id'], row['ShipZip3'], row['ConsZip3'], row['ShipDate'], row['DelivDate'], row['UPPER([Truck Number])'], row['UPPER([Driver])'], row['Equipment'], row['Trailer Number'], city1, city2)
@@ -561,3 +576,17 @@ matchedItems = []
 main()
 
 #showRouteMap(bigRoutesList)
+
+print(max(ctMaster))
+
+
+from collections import Counter
+c = Counter(ctMaster)
+
+print(c.most_common(5))
+
+
+
+
+
+

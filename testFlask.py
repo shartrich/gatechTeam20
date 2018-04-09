@@ -3,7 +3,7 @@ from flask import Flask, request
 from sqlalchemy import create_engine
 import pandas as pd
 import csv
-from flask.ext.jsonpify import jsonify
+
 import re
 import datetime
 import numpy as np
@@ -11,19 +11,18 @@ import numpy as np
 from collections import OrderedDict, defaultdict
 
 
-defaults = {}
+default = {}
 defaults['server'] = "sql9.freemysqlhosting.net"
 defaults['name'] = "sql9231477"
 defaults['username'] = "sql9231477"
 defaults['password'] = "fhGB7MNW5I"
-defaults['table'] = "march_drayage"
+defaults['table'] = "drayage_march"
 
 
-#engineString = "mysql://" + username + password + "@" + server + name
+#engineString = "mysql://" + username + password + "@" + server + name 
 
 #engine = create_engine("mysql://sql9229495:2JAaltxk9J@sql9.freemysqlhosting.net/sql9229495", encoding='latin1', echo=True)
 #engine = create_engine(engineString)
-
 
 
 
@@ -42,7 +41,7 @@ def readCSV(csvFile):
         data = list(reader)
     return data
 
-# Assigns a 3-Digit Standard ZipCode
+# Assigns a 3-Digit Standard ZipCode 
 def zipSwitcher(integer):
 
     switcher = {
@@ -85,7 +84,7 @@ def matchEquipment(equip):
     if equip in e20 + e40:
         if equip in e20:
             temp = e20
-
+            
         elif equip in e40:
             temp = e40
         else:
@@ -105,7 +104,7 @@ def retreiveDates(rawInput, impExp):
 
     form = impExp.replace("'", "").replace('"', "").upper() #unnecessary, but quality control
     inp = rawInput.replace("'", "").replace('"', "").upper() #unnecessary, but quality control
-
+    
     #construct a default date to use if none can be extracted
     tod = pd.Timestamp.today() - datetime.timedelta(1)
 
@@ -123,12 +122,12 @@ def retreiveDates(rawInput, impExp):
                      + "([^a-zA-Z0-9\n]{0,3}"    \
                      + "(?P<word2>ERD|ETA|LFD|CUT)?\s?" \
                      + "(?P<date2>\d{1,2}\/\d{1,2}\/{0,1}\/{0,4}))?")
-
+    
     m = pat.search(inp)
-
+    
     #print(m.groupdict().keys())
     #retList = []
-
+    
     #if regex fails
     if m == None:
         dateLimits["ETA"] = tod
@@ -154,7 +153,7 @@ def retreiveDates(rawInput, impExp):
                 dateLimits["CUT"] = dateLimits["ERD"] + datetime.timedelta(4)
 
         retList = [dateLimits["ERD"], dateLimits["CUT"]]
-
+        
     #has LFD and ETA
     elif form == "IMPORT":
         if m.group('date2') != None: #means it has both LFD and ETA
@@ -170,9 +169,9 @@ def retreiveDates(rawInput, impExp):
             if m.group("word1") == "LFD":
                 dateLimits["ETA"] = dateLimits["LFD"] - datetime.timedelta(4)
 
-
+    
         retList = [dateLimits["ETA"], dateLimits["LFD"]]
-
+    
     #returns the two items in a dictionary
     #return dateLimits
     #print('RETLIST', retList)
@@ -183,13 +182,13 @@ def retreiveDates(rawInput, impExp):
 #consider a better method that doesnt need to invoke this O(n^2 is not ideal)
 #!upload this file to PythonAnywhere
 def distRef():
-    # Create matrix with all the distances between the most used 3-digit zip codes
+    # Create matrix with all the distances between the most used 3-digit zip codes 
     global distanceMatrix
     #distanceMatrix = readCSV('matrixOfRealDistances.csv')
-
+    
     ####!!!!!##!#!#!#!#! adjust in new api host
     distanceMatrix = readCSV('/home/shartrich/mysite/matrixOfRealDistances.csv')
-
+    
     headerRow = distanceMatrix[0][1:]
 
     distanceDict = {}
@@ -206,7 +205,7 @@ def distRef():
     distanceDict[('ZipError', 'ZipError')] = 999999
 
     # Assign value to each (fromZip, toZip): distance value
-    distanceRows = distanceMatrix[1:]
+    distanceRows = distanceMatrix[1:] 
     #for row in distanceMatrix:
     for row in distanceRows:
 
@@ -218,7 +217,7 @@ def distRef():
             toZip = zipSwitcher(headerRow[colNum])
             distanceDict[(fromZip, toZip)] = int(float(item))
 
-
+    
     return distanceDict
 
 
@@ -231,7 +230,7 @@ def matchMaker():
     #single input var is integer loadID, use SQL to return trip data items
     loadID =  request.args.get('loadID', default = 0, type = int)
     dataTable =  request.args.get('table', default = defaults['table'], type = str)
-
+    
 
     #determine defaults for MySQL connection
     server =  request.args.get('server', default = defaults['server'], type = str)
@@ -239,26 +238,21 @@ def matchMaker():
     username =  request.args.get('username', default = defaults['username'], type = str)
     password =  request.args.get('password', default = defaults['password'], type = str)
 
+    engineString = "mysql://" + username + password + "@" + server + name 
 
-    #construct ssh connection with
-    engineString = "mysql://" + username + ":" + password + "@" + server + "/" + name
-    #engine = create_engine("mysql://sql9229495:2JAaltxk9J@sql9.freemysqlhosting.net/sql9229495", encoding='latin1', echo=True)
-
-    engine = create_engine(engineString, encoding='latin1', echo=True)
 
     #query to look into target trip
     firstQuery = "SELECT * from %s where ID = %s"  %(dataTable, loadID)
-
+    
 
     #return SQL query as pandas table
     conn = engine.connect()
     focusLoad = pd.read_sql_query(firstQuery, conn)
     conn.close()
 
-
     #declare all needed values of trip
     loadType = focusLoad['UPPER[Truck_Number]'].values[0]
-    steamShipLine = "'" + focusLoad['UPPER[Driver]'].values[0] + "'"
+    steamShipLine = focusLoad['UPPER[Driver]'].values[0]
     clientCity = focusLoad['Con_Zip'].values[0]
     shipCity = focusLoad['Ship_Zip'].values[0]
     equipment = focusLoad['Equipment'].values[0]
@@ -266,9 +260,9 @@ def matchMaker():
 
 
     loadType = loadType.upper()
-    if loadType == "'EXPORT'" or loadType == '"EXPORT"' or loadType == 'EXPORT':
+    if loadType == "'EXPORT'" or loadType == '"EXPORT"':
         retLoadType = "'IMPORT'"
-    elif loadType == "'IMPORT'" or loadType == '"IMPORT"' or loadType == 'IMPORT':
+    elif loadType == "'IMPORT'" or loadType == '"IMPORT"':
         retLoadType = "'EXPORT'"
     else:
         return "Error on IMPORT/EXPORT label"
@@ -276,18 +270,25 @@ def matchMaker():
     #returns either [ETA, LFD] or [ERD, CUT]
     dateLimits = retreiveDates(rawInput, loadType)
 
+
     #grabs a list of valid matching equipment items
     retEquipment = matchEquipment(equipment)
 
     #connect to DB and retreive basic results
     #!still needs addition of date fields in query to minimize data transfer
+    
+
 
 
     conn = engine.connect()
     engine = create_engine(engineString)
 
 
-    queryString = "SELECT * from %s where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s " %(dataTable, steamShipLine, retLoadType, shipCity, retEquipment)
+    queryString = "SELECT * from =%s where `UPPER[Driver]` =%s  and `UPPER[Truck_Number]` =%s and Ship_Zip =%s and Equipment in %s " %(dataTable, steamShipLine, retLoadType, shipCity, retEquipment)    
+
+
+        
+
 
 
     query = pd.read_sql_query(queryString, conn)
@@ -297,8 +298,8 @@ def matchMaker():
     #rename non-intuitive columns
     query.rename(index=str, columns={'`UPPER[Truck_Number]`': 'ImpExp', '`UPPER[Driver]`': 'SteamShipLine', 'Trailer_Number': 'rawInput'})
     query.rename(columns={'UPPER[Truck_Number]': 'ImpExp', 'UPPER[Driver]': 'SteamShipLine', 'Trailer_Number': 'rawInput'}, inplace=True)
-
-
+    
+    
     #add the 3digit zip equivalents and compute distances
     shipZip3 = addZip3(shipCity)
     clientZip3 = addZip3(clientCity)
@@ -312,8 +313,8 @@ def matchMaker():
     tempDF = zip(query.ShipZip3, query.ClientZip3)
     newCol = [distanceReferences[(x,y)] for x,y in tempDF]
     query['Distance'] = newCol
-
-
+    
+    
     #combined total of two trips run seperate. *2 because two legs of each
     query['IndivTotalDistance'] = (query['Distance'] + mainDistance) * 2
 
@@ -330,60 +331,46 @@ def matchMaker():
 
     #filters for distance
     query = query.query('CombinedTotalDistance < IndivTotalDistance')
-    query.sort_values(by=['DeadHead'], ascending=True)
 
     #Turns the raw input into 2 viable dates
-    tempDF = zip(query.rawInput, query.ImpExp)      #error is returning not loadType, but
+    tempDF = zip(query.rawInput, query.ImpExp)      #error is returning not loadType, but 
     newCol = [retreiveDates(x,y) for x,y in tempDF]
     newCol1 = [x[0] for x in newCol]
     newCol2 = [x[1] for x in newCol]
-
-
+    
+    
     query['DateLim1'] = newCol1
     query['DateLim2'] = newCol2
 
-
-
     #filters for datesLimits
-    if loadType == "'IMPORT'" or loadType == '"IMPORT"' or loadType == 'IMPORT':
+    if loadType == "'IMPORT'":
         #list of trips all exports
 
         #LFD to ERD
-        #query['LFDtoERD'] = ((dateLimits[1] - query.DateLim1) / np.timedelta64(1, 'D')).astype(int)
-        query['LFDtoERD'] = ((query.DateLim1 - dateLimits[1]) / np.timedelta64(1, 'D')).astype(int)
+        query['LFDtoERD'] = ((dateLimits[1] - query.DateLim1) / np.timedelta64(1, 'D')).astype(int)
 
         #ETA to CUT
         query['ETAtoCUT'] = ((query.DateLim2 - dateLimits[0])/ np.timedelta64(1, 'D')).astype(int)
 
 
-    elif loadType == "'EXPORT'" or loadType == '"EXPORT"' or loadType == 'EXPORT':
+    elif loadType == "'EXPORT'":
         #LFD to ERD
-        query['LFDtoERD'] = ((query.DateLim2 - dateLimits[0]) / np.timedelta64(1, 'D')).astype(int)
+        query['LFDtoERD'] = ((query.DateLim2 - dateLimits[0])/ np.timedelta64(1, 'D')).astype(int)
 
         #ETA to CUT
-        query['ETAtoCUT'] = ((query.DateLim1 - dateLimits[1]) / np.timedelta64(1, 'D')).astype(int)
+        query['ETAtoCUT'] = ((-dateLimits[1] + query.DateLim1)/ np.timedelta64(1, 'D')).astype(int)
 
-    else:
-        return "Error on IMPORT/EXPORT label"
 
-    #print("X1", focusLoad)
-    #print("X2", query)
+    #print("XXXXXXX", query.LFDtoERD, query.ETAtoCUT)
+    #date filtering query:::
     query = query.query("LFDtoERD <= 2 and ETAtoCUT >= 0")
 
-    cols = ['Id','DeadHead']
-    query['json_col'] = query[cols].apply(lambda x: x.to_json(), axis=1)
+    #return dfToResponse(query)
 
-
-
-    result = {'Potenital Matches for ' + loadID + ":": list(query['json_col'])}
-
-    return jsonify(result)
-
-
-
-    return query['json_col']
-    #return jsonify(result)
-
+    resultsDict = query.to_dict(into=OrderedDict)
+    
+    #result = {'data': [dict(zip(tuple (resultsDict.keys()) ,i)) for i in resultsDict.cursor]}
+    return query[loadID].to_json()
 
 
 if __name__ == '__main__':
